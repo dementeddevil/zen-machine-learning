@@ -5,6 +5,7 @@ namespace Zen.MachineLearning.Core.Neural
     using System.Numerics;
     using System.Runtime.Serialization;
     using System.Runtime.Serialization.Formatters.Binary;
+    using System.Text.Json;
 
     /// <summary>
     /// Base neural network class.
@@ -160,8 +161,7 @@ namespace Zen.MachineLearning.Core.Neural
         /// 
         public void Save(Stream stream)
         {
-            IFormatter formatter = new BinaryFormatter();
-            formatter.Serialize(stream, this);
+            JsonSerializer.Serialize(stream, this);
         }
 
         /// <summary>
@@ -195,9 +195,7 @@ namespace Zen.MachineLearning.Core.Neural
         /// 
         public static Network<T> Load(Stream stream)
         {
-            IFormatter formatter = new BinaryFormatter();
-            var network = (Network<T>)formatter.Deserialize(stream);
-            return network;
+            return JsonSerializer.Deserialize<Network<T>>(stream);
         }
     }
 }
