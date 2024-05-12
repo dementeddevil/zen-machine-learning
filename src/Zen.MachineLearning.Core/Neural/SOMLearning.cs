@@ -348,7 +348,7 @@ public class SomLearningEx<T> : SomLearning<T>
     /// multi-dimensional neuron topologies.
     /// </para>
     /// </remarks>
-    public override T Run(T[] input)
+    public override T Run(Vector<T> input)
     {
         T error = T.Zero;
 
@@ -365,14 +365,15 @@ public class SomLearningEx<T> : SomLearning<T>
             var neuron = layer.Neurons[winner];
 
             // update weight of the winner only
-            for (var i = 0; i < neuron.Weights.Length; i++)
+            for (var i = 0; i < neuron.InputCount; i++)
             {
                 // calculate the error
                 var e = input[i] - neuron.Weights[i];
                 error += T.Abs(e);
 
                 // update weights
-                neuron.Weights[i] += e * T.CreateChecked(learningRate);
+                neuron.Weights = neuron.Weights.WithElement(
+                    i, neuron.Weights[i] + e * T.CreateChecked(learningRate));
             }
         }
         else
@@ -390,7 +391,7 @@ public class SomLearningEx<T> : SomLearning<T>
 
             for (var iteration = 0; iteration < maxIterations; ++iteration)
             {
-                var factor = Math.Exp(-(double)(iteration * iteration) / SquaredRadius2);
+                var factor = T.CreateChecked(Math.Exp(-(double)(iteration * iteration) / SquaredRadius2));
 
                 // Process current neuron set
                 foreach (var workItem in currentSet)
@@ -398,14 +399,15 @@ public class SomLearningEx<T> : SomLearning<T>
                     Neuron<T> neuron = workItem.Neuron;
 
                     // update weight of the neuron
-                    for (var i = 0; i < neuron.Weights.Length; i++)
+                    for (var i = 0; i < neuron.InputCount; i++)
                     {
                         // calculate the error
-                        T e = (input[i] - neuron.Weights[i]) * T.CreateChecked(factor);
+                        T e = (input[i] - neuron.Weights[i]) * factor;
                         error += T.Abs(e);
 
                         // update weight
-                        neuron.Weights[i] += e * T.CreateChecked(learningRate);
+                        neuron.Weights = neuron.Weights.WithElement(
+                            i, neuron.Weights[i] + e * T.CreateChecked(learningRate));
                     }
                 }
 

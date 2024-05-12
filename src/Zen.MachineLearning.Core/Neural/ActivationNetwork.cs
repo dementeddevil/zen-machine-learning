@@ -51,6 +51,7 @@ public class ActivationNetwork<T> : Network<T>
                 index == 0 ? inputCount : neuronCountPerLayer[index - 1],
                 function);
         }
+        outputsCount = neuronCountPerLayer.Last();
     }
 
     /// <summary>

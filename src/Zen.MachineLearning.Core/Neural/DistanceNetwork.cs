@@ -30,6 +30,7 @@ public class DistanceNetwork<T> : Network<T> where T : IFloatingPoint<T>, IRootF
     {
         // create layer
         layers[0] = new DistanceLayer<T>(neuronCount, inputCount);
+        outputsCount = neuronCount;
     }
 
     /// <summary>
@@ -47,7 +48,7 @@ public class DistanceNetwork<T> : Network<T> where T : IFloatingPoint<T>, IRootF
         var min = output[0];
         var minIndex = 0;
 
-        for (var i = 1; i < output.Length; i++)
+        for (var i = 1; i < outputsCount; i++)
         {
             if (output[i] < min)
             {

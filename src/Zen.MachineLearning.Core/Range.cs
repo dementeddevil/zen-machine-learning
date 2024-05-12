@@ -181,7 +181,7 @@ public struct Range<T> where T : INumber<T>
     /// 
     public override bool Equals(object obj)
     {
-        return obj is IntRange ? this == (Range<T>)obj : false;
+        return obj is Range<T> ? this == (Range<T>)obj : false;
     }
 
     /// <summary>

@@ -21,6 +21,8 @@ namespace Zen.MachineLearning.Core.Neural
         /// </summary>
         protected int inputsCount;
 
+        protected int outputsCount;
+
         /// <summary>
         /// Network's layers count.
         /// </summary>
@@ -34,12 +36,14 @@ namespace Zen.MachineLearning.Core.Neural
         /// <summary>
         /// Network's output vector.
         /// </summary>
-        protected T[] output;
+        protected Vector<T> output;
 
         /// <summary>
         /// Network's inputs count.
         /// </summary>
         public int InputsCount => inputsCount;
+
+        public int OutputsCount => outputsCount;
 
         /// <summary>
         /// Network's layers.
@@ -57,7 +61,7 @@ namespace Zen.MachineLearning.Core.Neural
         /// <see cref="Compute"/> method is called.</note></para>
         /// </remarks>
         /// 
-        public T[] Output => output;
+        public Vector<T> Output => output;
 
 
         /// <summary>

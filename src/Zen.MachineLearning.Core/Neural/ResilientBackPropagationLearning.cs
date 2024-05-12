@@ -1,6 +1,7 @@
 ﻿namespace Zen.MachineLearning.Core.Neural
 {
     using System;
+    using System.Numerics;
 
     /// <summary>
     /// Resilient Backpropagation learning algorithm.
@@ -41,9 +42,10 @@
     /// </code>
     /// </remarks>
     /// 
-    public class ResilientBackpropagationLearning : ISupervisedLearning
+    public class ResilientBackpropagationLearning<T> : ISupervisedLearning<T>
+        where T : IFloatingPoint<T>
     {
-        private readonly ActivationNetwork _network;
+        private readonly ActivationNetwork<T> _network;
 
         private double _learningRate = 0.0125;
         private readonly double _deltaMax = 50.0;
@@ -94,7 +96,7 @@
         /// 
         /// <param name="network">Network to teach.</param>
         /// 
-        public ResilientBackpropagationLearning(ActivationNetwork network)
+        public ResilientBackpropagationLearning(ActivationNetwork<T> network)
         {
             _network = network;
 
@@ -153,7 +155,7 @@
         /// <remarks><para>Runs one learning iteration and updates neuron's
         /// weights.</para></remarks>
         ///
-        public double Run(double[] input, double[] output)
+        public T Run(Vector<T> input, Vector<T> output)
         {
             // zero gradient
             ResetGradient();
@@ -187,12 +189,12 @@
         /// <remarks><para>The method runs one learning epoch, by calling <see cref="Run"/> method
         /// for each vector provided in the <paramref name="input"/> array.</para></remarks>
         /// 
-        public double RunEpoch(double[][] input, double[][] output)
+        public T RunEpoch(Vector<T>[] input, Vector<T>[] output)
         {
             // zero gradient
             ResetGradient();
 
-            var error = 0.0;
+            var error = T.Zero;
 
             // run learning procedure for all samples
             for (var i = 0; i < input.Length; i++)
@@ -281,7 +283,7 @@
             // for each layer of the network
             for (var i = 0; i < _network.Layers.Length; i++)
             {
-                var layer = _network.Layers[i] as ActivationLayer;
+                var layer = _network.Layers[i] as ActivationLayer<T>;
 
                 layerWeightsUpdates = _weightsUpdates[i];
                 layerThresholdUpdates = _thresholdsUpdates[i];
@@ -295,7 +297,7 @@
                 // for each neuron of the layer
                 for (var j = 0; j < layer.Neurons.Length; j++)
                 {
-                    var neuron = layer.Neurons[j] as ActivationNeuron;
+                    var neuron = layer.Neurons[j] as ActivationNeuron<T>;
 
                     neuronWeightUpdates = layerWeightsUpdates[j];
                     neuronWeightDerivatives = layerWeightsDerivatives[j];
@@ -311,7 +313,8 @@
                         if (s > 0)
                         {
                             neuronWeightUpdates[k] = Math.Min(neuronWeightUpdates[k] * _etaPlus, _deltaMax);
-                            neuron.Weights[k] -= Math.Sign(neuronWeightDerivatives[k]) * neuronWeightUpdates[k];
+                            neuron.Weights = neuron.Weights.WithElement(
+                                k, neuron.Weights[k] - T.CreateChecked(Math.Sign(neuronWeightDerivatives[k]) * neuronWeightUpdates[k]));
                             neuronPreviousWeightDerivatives[k] = neuronWeightDerivatives[k];
                         }
                         else if (s < 0)
@@ -321,7 +324,8 @@
                         }
                         else
                         {
-                            neuron.Weights[k] -= Math.Sign(neuronWeightDerivatives[k]) * neuronWeightUpdates[k];
+                            neuron.Weights = neuron.Weights.WithElement(
+                                k, neuron.Weights[k] - T.CreateChecked(Math.Sign(neuronWeightDerivatives[k]) * neuronWeightUpdates[k]));
                             neuronPreviousWeightDerivatives[k] = neuronWeightDerivatives[k];
                         }
                     }
@@ -332,7 +336,7 @@
                     if (s > 0)
                     {
                         layerThresholdUpdates[j] = Math.Min(layerThresholdUpdates[j] * _etaPlus, _deltaMax);
-                        neuron.Threshold -= Math.Sign(layerThresholdDerivatives[j]) * layerThresholdUpdates[j];
+                        neuron.Threshold -= T.CreateChecked(Math.Sign(layerThresholdDerivatives[j]) * layerThresholdUpdates[j]);
                         layerPreviousThresholdDerivatives[j] = layerThresholdDerivatives[j];
                     }
                     else if (s < 0)
@@ -342,7 +346,7 @@
                     }
                     else
                     {
-                        neuron.Threshold -= Math.Sign(layerThresholdDerivatives[j]) * layerThresholdUpdates[j];
+                        neuron.Threshold -= T.CreateChecked(Math.Sign(layerThresholdDerivatives[j]) * layerThresholdUpdates[j]);
                         layerPreviousThresholdDerivatives[j] = layerThresholdDerivatives[j];
                     }
                 }
@@ -357,52 +361,51 @@
         /// 
         /// <returns>Returns summary squared error of the last layer divided by 2.</returns>
         /// 
-        private double CalculateError(double[] desiredOutput)
+        private T CalculateError(Vector<T> desiredOutput)
         {
-            double error = 0;
+            T error = T.Zero;
             var layersCount = _network.Layers.Length;
 
             // assume, that all neurons of the network have the same activation function
-            var function = (_network.Layers[0].Neurons[0] as ActivationNeuron).ActivationFunction;
+            var function = (_network.Layers[0].Neurons[0] as ActivationNeuron<T>).ActivationFunction;
 
             // calculate error values for the last layer first
-            var layer = _network.Layers[layersCount - 1] as ActivationLayer;
+            var layer = _network.Layers[layersCount - 1] as ActivationLayer<T>;
             var layerDerivatives = _neuronErrors[layersCount - 1];
 
             for (var i = 0; i < layer.Neurons.Length; i++)
             {
                 var output = layer.Neurons[i].Output;
 
-                var e = output - desiredOutput[i];
-                layerDerivatives[i] = e * function.Derivative2(output);
+                var e = output - T.CreateChecked(desiredOutput[i]);
+                layerDerivatives[i] = Double.CreateChecked(e * function.Derivative2(output));
                 error += e * e;
             }
 
             // calculate error values for other layers
             for (var j = layersCount - 2; j >= 0; j--)
             {
-                layer = _network.Layers[j] as ActivationLayer;
+                layer = _network.Layers[j] as ActivationLayer<T>;
                 layerDerivatives = _neuronErrors[j];
 
-                var layerNext = _network.Layers[j + 1] as ActivationLayer;
+                var layerNext = _network.Layers[j + 1] as ActivationLayer<T>;
                 var nextDerivatives = _neuronErrors[j + 1];
 
                 // for all neurons of the layer
                 for (int i = 0, n = layer.Neurons.Length; i < n; i++)
                 {
                     var sum = 0.0;
-
                     for (var k = 0; k < layerNext.Neurons.Length; k++)
                     {
-                        sum += nextDerivatives[k] * layerNext.Neurons[k].Weights[i];
+                        sum += nextDerivatives[k] * Double.CreateChecked(layerNext.Neurons[k].Weights[i]);
                     }
 
-                    layerDerivatives[i] = sum * function.Derivative2(layer.Neurons[i].Output);
+                    layerDerivatives[i] = sum * Double.CreateChecked(function.Derivative2(layer.Neurons[i].Output));
                 }
             }
 
             // return squared error of the last layer divided by 2
-            return error / 2.0;
+            return error / T.CreateChecked(2.0);
         }
 
         /// <summary>
@@ -411,10 +414,10 @@
         /// 
         /// <param name="input">Network's input vector.</param>
         /// 
-        private void CalculateGradient(double[] input)
+        private void CalculateGradient(Vector<T> input)
         {
             // 1. calculate updates for the first layer
-            var layer = _network.Layers[0] as ActivationLayer;
+            var layer = _network.Layers[0] as ActivationLayer<T>;
             var weightErrors = _neuronErrors[0];
             var layerWeightsDerivatives = _weightsDerivatives[0];
             var layerThresholdDerivatives = _thresholdsDerivatives[0];
@@ -422,13 +425,13 @@
             // So, for each neuron of the first layer:
             for (var i = 0; i < layer.Neurons.Length; i++)
             {
-                var neuron = layer.Neurons[i] as ActivationNeuron;
+                var neuron = layer.Neurons[i] as ActivationNeuron<T>;
                 var neuronWeightDerivatives = layerWeightsDerivatives[i];
 
                 // for each weight of the neuron:
                 for (var j = 0; j < neuron.InputCount; j++)
                 {
-                    neuronWeightDerivatives[j] += weightErrors[i] * input[j];
+                    neuronWeightDerivatives[j] += weightErrors[i] * Double.CreateChecked(input[j]);
                 }
                 layerThresholdDerivatives[i] += weightErrors[i];
             }
@@ -436,23 +439,23 @@
             // 2. for all other layers
             for (var k = 1; k < _network.Layers.Length; k++)
             {
-                layer = _network.Layers[k] as ActivationLayer;
+                layer = _network.Layers[k] as ActivationLayer<T>;
                 weightErrors = _neuronErrors[k];
                 layerWeightsDerivatives = _weightsDerivatives[k];
                 layerThresholdDerivatives = _thresholdsDerivatives[k];
 
-                var layerPrev = _network.Layers[k - 1] as ActivationLayer;
+                var layerPrev = _network.Layers[k - 1] as ActivationLayer<T>;
 
                 // for each neuron of the layer
                 for (var i = 0; i < layer.Neurons.Length; i++)
                 {
-                    var neuron = layer.Neurons[i] as ActivationNeuron;
+                    var neuron = layer.Neurons[i] as ActivationNeuron<T>;
                     var neuronWeightDerivatives = layerWeightsDerivatives[i];
 
                     // for each weight of the neuron
                     for (var j = 0; j < layerPrev.Neurons.Length; j++)
                     {
-                        neuronWeightDerivatives[j] += weightErrors[i] * layerPrev.Neurons[j].Output;
+                        neuronWeightDerivatives[j] += weightErrors[i] * Double.CreateChecked(layerPrev.Neurons[j].Output);
                     }
                     layerThresholdDerivatives[i] += weightErrors[i];
                 }

@@ -1,4 +1,3 @@
-using System;
 using System.Numerics;
 
 namespace Zen.MachineLearning.Core.Neural;

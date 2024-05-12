@@ -1,6 +1,7 @@
 namespace Zen.MachineLearning.Core.Neural
 {
     using System;
+    using System.Numerics;
 
     /// <summary>
     /// Back propagation learning algorithm.
@@ -42,20 +43,20 @@ namespace Zen.MachineLearning.Core.Neural
     /// 
     /// <seealso cref="EvolutionaryLearning"/>
     /// 
-    public class BackPropagationLearning : ISupervisedLearning
+    public class BackPropagationLearning<T> : ISupervisedLearning<T>
+        where T : IFloatingPoint<T>
     {
         // network to teach
-        private readonly ActivationNetwork _network;
+        private readonly ActivationNetwork<T> _network;
         // learning rate
         private double _learningRate = 0.1;
         // momentum
         private double _momentum = 0.0;
 
-        // neuron's errors
         private readonly double[][] _neuronErrors = null;
-        // weight's updates
+
+        // update values, also known as deltas
         private readonly double[][][] _weightsUpdates = null;
-        // threshold's updates
         private readonly double[][] _thresholdsUpdates = null;
 
         /// <summary>
@@ -75,7 +76,20 @@ namespace Zen.MachineLearning.Core.Neural
             }
             set
             {
-                _learningRate = Math.Max(0.0, Math.Min(1.0, value));
+                var min = 0.0;
+                var max = 1.0;
+                if (value < min)
+                {
+                    _learningRate = min;
+                }
+                else if (value > max)
+                {
+                    _learningRate = max;
+                }
+                else
+                {
+                    _learningRate = value;
+                }
             }
         }
 
@@ -102,7 +116,20 @@ namespace Zen.MachineLearning.Core.Neural
             }
             set
             {
-                _momentum = Math.Max(0.0, Math.Min(1.0, value));
+                var min = 0.0;
+                var max = 1.0;
+                if (value < min)
+                {
+                    _momentum = min;
+                }
+                else if (value > max)
+                {
+                    _momentum = max;
+                }
+                else
+                {
+                    _momentum = value;
+                }
             }
         }
 
@@ -112,7 +139,7 @@ namespace Zen.MachineLearning.Core.Neural
         /// 
         /// <param name="network">Network to teach.</param>
         /// 
-        public BackPropagationLearning(ActivationNetwork network)
+        public BackPropagationLearning(ActivationNetwork<T> network)
         {
             _network = network;
 
@@ -151,7 +178,7 @@ namespace Zen.MachineLearning.Core.Neural
         /// <remarks><para>Runs one learning iteration and updates neuron's
         /// weights.</para></remarks>
         ///
-        public double Run(double[] input, double[] output)
+        public T Run(Vector<T> input, Vector<T> output)
         {
             // compute the network's output
             _network.Compute(input);
@@ -181,12 +208,12 @@ namespace Zen.MachineLearning.Core.Neural
         /// <remarks><para>The method runs one learning epoch, by calling <see cref="Run"/> method
         /// for each vector provided in the <paramref name="input"/> array.</para></remarks>
         /// 
-        public double RunEpoch(double[][] input, double[][] output)
+        public T RunEpoch(Vector<T>[] input, Vector<T>[] output)
         {
-            var error = 0.0;
+            var error = T.CreateChecked(0.0);
 
             // run learning procedure for all samples
-            for (var i = 0; i < input.Length; i++)
+            for (int i = 0, n = input.Length; i < n; i++)
             {
                 error += Run(input[i], output[i]);
             }
@@ -194,7 +221,6 @@ namespace Zen.MachineLearning.Core.Neural
             // return summary error
             return error;
         }
-
 
         /// <summary>
         /// Calculates error values for all neurons of the network.
@@ -204,21 +230,21 @@ namespace Zen.MachineLearning.Core.Neural
         /// 
         /// <returns>Returns summary squared error of the last layer divided by 2.</returns>
         /// 
-        private double CalculateError(double[] desiredOutput)
+        private T CalculateError(Vector<T> desiredOutput)
         {
             // current and the next layers
-            Layer layer, layerNext;
+            Layer<T> layer, layerNext;
             // current and the next errors arrays
             double[] errors, errorsNext;
             // error values
-            double error = 0, e, sum;
+            T error = T.Zero, e, sum;
             // neuron's output value
-            double output;
+            T output;
             // layers count
             var layersCount = _network.Layers.Length;
 
             // assume, that all neurons of the network have the same activation function
-            var function = (_network.Layers[0].Neurons[0] as ActivationNeuron).ActivationFunction;
+            var function = (_network.Layers[0].Neurons[0] as ActivationNeuron<T>).ActivationFunction;
 
             // calculate error values for the last layer first
             layer = _network.Layers[layersCount - 1];
@@ -227,10 +253,13 @@ namespace Zen.MachineLearning.Core.Neural
             for (var i = 0; i < layer.Neurons.Length; i++)
             {
                 output = layer.Neurons[i].Output;
+
                 // error of the neuron
                 e = desiredOutput[i] - output;
+
                 // error multiplied with activation function's derivative
-                errors[i] = e * function.Derivative2(output);
+                errors[i] = Double.CreateChecked(e * function.Derivative2(output));
+
                 // squre the error and sum it
                 error += e * e;
             }
@@ -246,18 +275,20 @@ namespace Zen.MachineLearning.Core.Neural
                 // for all neurons of the layer
                 for (var i = 0; i < layer.Neurons.Length; i++)
                 {
-                    sum = 0.0;
+                    sum = T.CreateChecked(0.0);
+
                     // for all neurons of the next layer
                     for (var k = 0; k < layerNext.Neurons.Length; k++)
                     {
-                        sum += errorsNext[k] * layerNext.Neurons[k].Weights[i];
+                        sum += T.CreateChecked(errorsNext[k]) * layerNext.Neurons[k].Weights[i];
                     }
-                    errors[i] = sum * function.Derivative2(layer.Neurons[i].Output);
+
+                    errors[i] = Double.CreateChecked(sum * function.Derivative2(layer.Neurons[i].Output));
                 }
             }
 
             // return squared error of the last layer divided by 2
-            return error / 2.0;
+            return error / T.CreateChecked(2.0);
         }
 
         /// <summary>
@@ -266,12 +297,12 @@ namespace Zen.MachineLearning.Core.Neural
         /// 
         /// <param name="input">Network's input vector.</param>
         /// 
-        private void CalculateUpdates(double[] input)
+        private void CalculateUpdates(Vector<T> input)
         {
             // current neuron
-            Neuron neuron;
+            Neuron<T> neuron;
             // current and previous layers
-            Layer layer, layerPrev;
+            Layer<T> layer, layerPrev;
             // layer's weights updates
             double[][] layerWeightsUpdates;
             // layer's thresholds updates
@@ -291,7 +322,7 @@ namespace Zen.MachineLearning.Core.Neural
 
             // cache for frequently used values
             var cachedMomentum = _learningRate * _momentum;
-            var cached1MMomentum = _learningRate * (1 - _momentum);
+            var cached1MMomentum = _learningRate * (1.0 - _momentum);
             double cachedError;
 
             // for each neuron of the layer
@@ -305,7 +336,9 @@ namespace Zen.MachineLearning.Core.Neural
                 for (var j = 0; j < neuronWeightUpdates.Length; j++)
                 {
                     // calculate weight update
-                    neuronWeightUpdates[j] = cachedMomentum * neuronWeightUpdates[j] + cachedError * input[j];
+                    neuronWeightUpdates[j] = 
+                        cachedMomentum * neuronWeightUpdates[j] +
+                        cachedError * Double.CreateChecked(input[j]);
                 }
 
                 // calculate treshold update
@@ -332,7 +365,9 @@ namespace Zen.MachineLearning.Core.Neural
                     for (var j = 0; j < neuronWeightUpdates.Length; j++)
                     {
                         // calculate weight update
-                        neuronWeightUpdates[j] = cachedMomentum * neuronWeightUpdates[j] + cachedError * layerPrev.Neurons[j].Output;
+                        neuronWeightUpdates[j] =
+                            cachedMomentum * neuronWeightUpdates[j] +
+                            cachedError * Double.CreateChecked( layerPrev.Neurons[j].Output);
                     }
 
                     // calculate treshold update
@@ -347,38 +382,29 @@ namespace Zen.MachineLearning.Core.Neural
         /// 
         private void UpdateNetwork()
         {
-            // current neuron
-            ActivationNeuron neuron;
-            // current layer
-            Layer layer;
-            // layer's weights updates
-            double[][] layerWeightsUpdates;
-            // layer's thresholds updates
-            double[] layerThresholdUpdates;
-            // neuron's weights updates
-            double[] neuronWeightUpdates;
-
             // for each layer of the network
             for (var i = 0; i < _network.Layers.Length; i++)
             {
-                layer = _network.Layers[i];
-                layerWeightsUpdates = _weightsUpdates[i];
-                layerThresholdUpdates = _thresholdsUpdates[i];
+                var layer = _network.Layers[i];
+                var layerWeightsUpdates = _weightsUpdates[i];
+                var layerThresholdUpdates = _thresholdsUpdates[i];
 
                 // for each neuron of the layer
                 for (var j = 0; j < layer.Neurons.Length; j++)
                 {
-                    neuron = layer.Neurons[j] as ActivationNeuron;
-                    neuronWeightUpdates = layerWeightsUpdates[j];
+                    var neuron = layer.Neurons[j] as ActivationNeuron<T>;
+                    var neuronWeightUpdates = layerWeightsUpdates[j];
 
                     // for each weight of the neuron
-                    for (var k = 0; k < neuron.Weights.Length; k++)
+                    for (var k = 0; k < neuron.InputCount; k++)
                     {
                         // update weight
-                        neuron.Weights[k] += neuronWeightUpdates[k];
+                        neuron.Weights = neuron.Weights.WithElement(
+                            k, neuron.Weights[k] + T.CreateChecked(neuronWeightUpdates[k]));
                     }
+
                     // update treshold
-                    neuron.Threshold += layerThresholdUpdates[j];
+                    neuron.Threshold += T.CreateChecked(layerThresholdUpdates[j]);
                 }
             }
         }
