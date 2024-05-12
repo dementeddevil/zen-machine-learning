@@ -10,7 +10,8 @@ namespace Zen.MachineLearning.Core.Neural;
 /// common properties, like neuron's input, output and weights.</remarks>
 /// 
 [Serializable]
-public abstract class Neuron<T> where T : IFloatingPoint<T>
+public abstract class Neuron<T>
+    where T : IFloatingPoint<T>
 {
     /// <summary>
     /// Number of neuron inputs.
